@@ -1,26 +1,25 @@
 package heap;
 
+import java.util.Arrays;
+
 public class Tuple {
 
-	byte[] _byteArray;
-	int _recLength;
+	protected byte[] data;
 	
 	public Tuple(byte[] byteArray, int start, int size) {
-		// TODO Auto-generated constructor stub
+		data = Arrays.copyOfRange(byteArray, start, size);
 	}
 
 	public Tuple() {
-		// TODO Auto-generated constructor stub
+		data = null;
 	}
 
 	public int getLength() {
-		// TODO Auto-generated method stub
-		return 0;
+		return data.length;
 	}
 
 	public byte[] getTupleByteArray() {
-		// TODO Auto-generated method stub
-		return _byteArray;
+		return data;
 	}
 
 }
