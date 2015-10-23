@@ -7,7 +7,7 @@ import java.util.Map.Entry;
 import java.util.TreeMap;
 
 public class TwoWayMap {
-	private TreeMap<Integer,HashSet<Integer>> _dir;
+	public TreeMap<Integer,HashSet<Integer>> _dir;
 	
 	public TwoWayMap() {
 		_dir = new TreeMap<Integer,HashSet<Integer>>();
@@ -25,5 +25,9 @@ public class TwoWayMap {
 	
 	public boolean remove(int fSpace, int pageId) {
 		return false;
+	}
+	
+	public void clear() {
+		_dir.clear();
 	}
 }

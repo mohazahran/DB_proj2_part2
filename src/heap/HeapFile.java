@@ -6,6 +6,9 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Map;
 
 import global.GlobalConst;
 import global.Minibase;
@@ -17,7 +20,7 @@ public class HeapFile implements GlobalConst
 {
 	private String _name;
 	private Header _headPage;
-	private PageId _headPageId;
+	private PageId _headPageId = null;
 	private TwoWayMap _map = null;
 	private int rCount = 0;
 	
@@ -26,12 +29,11 @@ public class HeapFile implements GlobalConst
 	 * A null name produces a temporary heap file which requires no DB entry.
 	 */
 	public HeapFile (String name) {
-		if(name == null) {
-			return;
-		}
-
+		
 		_name = name;
-		_headPageId = Minibase.DiskManager.get_file_entry(name);
+		if(_name != null) {
+			_headPageId = Minibase.DiskManager.get_file_entry(_name);
+		}
 		
 		//check is the file exists already
 		if(_headPageId == null) {
@@ -40,6 +42,9 @@ public class HeapFile implements GlobalConst
 			rCount = 0;
 			_headPage = new Header();
 			_headPageId = Minibase.BufferManager.newPage(_headPage, 1);
+			if(_name != null) {
+				Minibase.DiskManager.add_file_entry(_name,_headPageId);
+			}
 			_map = new TwoWayMap();
 		}
 		else {
@@ -119,6 +124,7 @@ public class HeapFile implements GlobalConst
 			rId = dPage.insertRecord(record);
 			_map.insert(dPage.getFreeSpace(), newPageId.pid);
 		}
+		rCount++;
 		Minibase.BufferManager.unpinPage(pageId, true);
 		return rId;
 	}
@@ -132,12 +138,22 @@ public class HeapFile implements GlobalConst
 		dataPage.deleteRecord(rid);
 		_map.insert(dataPage.getFreeSpace(), pageId.pid);
 		Minibase.BufferManager.unpinPage(pageId, true);
+		rCount--;
 		return true;
 	}
 	
 	//Must be in O(log N)
-	public boolean updateRecord(RID rid, Tuple newRecord) {
-		return false;
+	public boolean updateRecord(RID rid, Tuple newRecord) throws InvalidUpdateException {
+		PageId pageId = rid.pageno;
+		HFPage dataPage = new HFPage();
+		Minibase.BufferManager.pinPage(pageId, dataPage, PIN_DISKIO);
+		byte[] record = dataPage.selectRecord(rid);
+		if(record.length != newRecord.getLength()) {
+			throw new InvalidUpdateException(null, "InvalidUpdateException");
+		}
+		dataPage.updateRecord(rid, newRecord);
+		Minibase.BufferManager.unpinPage(pageId, true);
+		return true;
 	}
 	
 	//get number of records in the file
@@ -146,11 +162,92 @@ public class HeapFile implements GlobalConst
 	}
 	
 	protected void finalize() {
+		if(_name == null) {
+			deleteFile();
+			return;
+		}
 		
+		byte[] byteMap = null;
+		try {
+			byteMap = serialize(_map);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		_headPage.setRecordCount(rCount);
+		int hCapacity = PAGE_SIZE-4*Integer.BYTES;
+		if(byteMap.length <= hCapacity) {
+			try {
+				_headPage.setMetaData(byteMap);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			_headPage.setNextHeader(new PageId(-1));
+			Minibase.BufferManager.unpinPage(_headPageId, true);
+			return;
+		}
+		
+		byte[] tempHData = Arrays.copyOfRange(byteMap,0,hCapacity);
+		try {
+			_headPage.setMetaData(tempHData);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		int mapSize = byteMap.length - hCapacity;
+		int numNHPages = (int)Math.ceil((float)mapSize / (float)(PAGE_SIZE-2*Integer.BYTES));
+		NextHeader _cNHead = new NextHeader();
+		PageId _cNHeadId = null;
+		
+		_cNHeadId = Minibase.BufferManager.newPage(_cNHead, numNHPages);
+		_headPage.setNextHeader(new PageId(_cNHeadId.pid));
+		Minibase.BufferManager.unpinPage(_headPageId, true);
+		Minibase.BufferManager.unpinPage(_cNHeadId, false);
+		
+		int start = hCapacity;
+		int end = start + (PAGE_SIZE-2*Integer.BYTES);
+		for(int i=0; i< numNHPages; i++) {
+			Minibase.BufferManager.pinPage(_cNHeadId, _cNHead, PIN_DISKIO);
+			if(i<numNHPages - 1) {
+				_cNHead.setNextHeader(new PageId(_cNHeadId.pid + 1));
+				byte[] tempNHData = Arrays.copyOfRange(byteMap,start,end);
+				try {
+					_cNHead.setMetaData(tempNHData);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				start = end;
+				end += (PAGE_SIZE-2*Integer.BYTES);
+			}
+			else {
+				_cNHead.setNextHeader(new PageId(-1));
+				byte[] tempNHData = Arrays.copyOfRange(byteMap,start,byteMap.length);
+				try {
+					_cNHead.setMetaData(tempNHData);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			Minibase.BufferManager.unpinPage(_cNHeadId, true);
+			_cNHeadId.pid = _cNHeadId.pid + 1;
+		}
 	}
-	
+
 	public void deleteFile() {
-		
+		for(Map.Entry<Integer,HashSet<Integer>> entry : _map._dir.entrySet()) {
+			HashSet<Integer> value = entry.getValue();
+			for (Integer pageId : value) {
+			    Minibase.BufferManager.freePage(new PageId(pageId));
+			}
+		}
+		_map.clear();
+		Minibase.BufferManager.unpinPage(_headPageId, false);
+		Minibase.BufferManager.freePage(_headPageId);
 	}
 
 	public HeapScan openScan() {
@@ -158,16 +255,22 @@ public class HeapFile implements GlobalConst
 	}
 	
 	public byte[] selectRecord(RID rid) {
-		return null;
+		PageId pageId = rid.pageno;
+		HFPage dataPage = new HFPage();
+		Minibase.BufferManager.pinPage(pageId, dataPage, PIN_DISKIO);
+		byte[] record = dataPage.selectRecord(rid);
+		Minibase.BufferManager.unpinPage(pageId, false);
+		return record;
 	}
 	
 	public String toString() {
-		return null;
+		return _name;
 	}
-		
-	//this fun in is the project doc, but not in the java doc
+
 	public Tuple getRecord(RID rid) {
-		return null;
+		byte[] record = selectRecord(rid);
+		Tuple tuple = new Tuple(record,0,record.length);
+		return tuple;
 	}
 	
 }
