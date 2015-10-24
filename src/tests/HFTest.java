@@ -263,9 +263,10 @@ class HFDriver extends TestDriver implements GlobalConst
 			}	
 		}
 
+		f.close();
+		
 		if ( status == OK )
 			System.out.println ("  Test 1 completed successfully.\n");
-
 		return status; 
 	}
 
@@ -336,12 +337,14 @@ class HFDriver extends TestDriver implements GlobalConst
 			}
 		}
 
+
 		try {
 			scan.close();
 		} catch (ChainException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
-		}	//  destruct scan!!!!!!!!!!!!!!!
+		}
+		//  destruct scan!!!!!!!!!!!!!!!
 		scan = null;
 
 		if ( status == OK && Minibase.BufferManager.getNumUnpinned() 
@@ -410,6 +413,8 @@ class HFDriver extends TestDriver implements GlobalConst
 			}
 		}
 
+		f.close();
+		
 		if ( status == OK )
 			System.out.println ("  Test 2 completed successfully.\n");
 		return status; 
@@ -596,6 +601,8 @@ class HFDriver extends TestDriver implements GlobalConst
 			}
 		}
 
+		f.close();
+		
 		if ( status == OK )
 			System.out.println ("  Test 3 completed successfully.\n");
 		return status; 
@@ -770,6 +777,8 @@ class HFDriver extends TestDriver implements GlobalConst
 			}
 		}
 
+		f.close();
+		
 		if ( status == OK )
 			System.out.println ("  Test 4 completed successfully.\n");
 		return (status == OK);
