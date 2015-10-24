@@ -40,17 +40,25 @@ public class Header extends Page {
 		return Convert.getIntValue(0, Arrays.copyOfRange(data, 3*Integer.BYTES, 4*Integer.BYTES));
 	}
 	
+	public void setLDId(PageId pageId) {
+		Convert.setIntValue(pageId.pid, 4*Integer.BYTES, data);
+	}
+	
+	public PageId getLDId() {
+		return new PageId(Convert.getIntValue(0, Arrays.copyOfRange(data, 4*Integer.BYTES, 5*Integer.BYTES)));
+	}
+	
 	public void setMetaData(byte[] _data) throws Exception {
-		if(_data.length > PAGE_SIZE-4*Integer.BYTES) {
+		if(_data.length > PAGE_SIZE-5*Integer.BYTES) {
 			throw new Exception("Header Exceeded Maximum Buffer Size");
 		}
 		
 		setDataSize(_data.length);
-		System.arraycopy(_data, 0, data, 4*Integer.BYTES, _data.length);
+		System.arraycopy(_data, 0, data, 5*Integer.BYTES, _data.length);
 	}
 	
 	public byte[] getMetaData() {
 		int size = getDataSize();
-		return Arrays.copyOfRange(data, 4*Integer.BYTES, 4*Integer.BYTES+size);
+		return Arrays.copyOfRange(data, 5*Integer.BYTES, 5*Integer.BYTES+size);
 	}
 }

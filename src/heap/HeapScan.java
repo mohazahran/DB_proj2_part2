@@ -1,9 +1,5 @@
 package heap;
 
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-
 import global.GlobalConst;
 import global.Minibase;
 import global.PageId;
@@ -12,24 +8,22 @@ import global.RID;
 public class HeapScan implements GlobalConst 
 {
 	private HeapFile _heapFile;
-	Iterator<Map.Entry<Integer,HashSet<Integer>>> _mapIterator = null;
-	Iterator<Integer> _pageIterator = null;
+	private Header _header;
 	PageId _currentPageId = null;
-	HFPage _currentPage;
+	HFPage _currentPage = null;
 	RID _curRid = null;
 	private boolean _unpinLast = true;
 
 	protected HeapScan(HeapFile hf) {
 		_heapFile = hf;
-		_currentPage = new HFPage();
-		_mapIterator = _heapFile.getMap()._dir.entrySet().iterator();
-		if(!(_mapIterator.hasNext())) {
-			return;
+		_header = new Header();
+		Minibase.BufferManager.pinPage(_heapFile._headPageId,_header, PIN_DISKIO);
+		_currentPageId = _header.getLDId();
+		if(_currentPageId.pid != -1) {
+			Minibase.BufferManager.unpinPage(_heapFile._headPageId, false);
+			_currentPage = new HFPage();
+			Minibase.BufferManager.pinPage(_currentPageId, _currentPage, PIN_DISKIO);
 		}
-		Map.Entry<Integer,HashSet<Integer>> mapEntry = _mapIterator.next();
-		_pageIterator = mapEntry.getValue().iterator();
-		_currentPageId =  new PageId(_pageIterator.next());
-		Minibase.BufferManager.pinPage(_currentPageId, _currentPage, PIN_DISKIO);
 	}
 	
 	protected void finalize() throws Throwable {
@@ -44,14 +38,14 @@ public class HeapScan implements GlobalConst
 	 
 	public boolean hasNext() {
 		if(_curRid == null) {
-			if(_currentPage.getSlotCount() != 0) {
-				return true;
-			}
-			else {
+			if(_currentPage == null) {
 				return false;
 			}
+			else {
+				return true;
+			}
 		}
-		else if(_currentPage.hasNext(_curRid) || _pageIterator.hasNext() || _mapIterator.hasNext()) {
+		else if(_currentPage.hasNext(_curRid) || _currentPage.getPrevPage().pid != _heapFile._headPageId.pid) {
 			return true;
 		}
 		return false;
@@ -73,9 +67,7 @@ public class HeapScan implements GlobalConst
 			_curRid = _currentPage.firstRecord();
 			rid.pageno.pid = _currentPageId.pid;
 			rid.slotno = _curRid.slotno;
-			byte[] temp = _currentPage.selectRecord(_curRid);
-			
-			return temp; 
+			return _currentPage.selectRecord(_curRid); 
 		}
 		
 		if(_currentPage.hasNext(_curRid)) {
@@ -86,19 +78,8 @@ public class HeapScan implements GlobalConst
 		}
 		
 		Minibase.BufferManager.unpinPage(_currentPageId, false);
-		if(_pageIterator.hasNext()) {
-			Integer inte = _pageIterator.next();
-			_currentPageId = new PageId(inte);
-			Minibase.BufferManager.pinPage(_currentPageId, _currentPage, PIN_DISKIO);
-			_curRid = _currentPage.firstRecord();
-			rid.pageno.pid = _currentPageId.pid;
-			rid.slotno = _curRid.slotno;
-			return _currentPage.selectRecord(_curRid);
-		}
-		
-		Map.Entry<Integer,HashSet<Integer>> mapEntry = _mapIterator.next();
-		_pageIterator = mapEntry.getValue().iterator();
-		_currentPageId =  new PageId(_pageIterator.next());
+		_currentPageId = _currentPage.getPrevPage();
+		_currentPage = new HFPage();
 		Minibase.BufferManager.pinPage(_currentPageId, _currentPage, PIN_DISKIO);
 		_curRid = _currentPage.firstRecord();
 		rid.pageno.pid = _currentPageId.pid;
