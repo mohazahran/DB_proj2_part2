@@ -1,5 +1,6 @@
 package heap;
 
+import chainexception.ChainException;
 import global.GlobalConst;
 import global.Minibase;
 import global.PageId;
@@ -30,7 +31,7 @@ public class HeapScan implements GlobalConst
 		close();
 	}
 	
-	public void close() {
+	public void close() throws ChainException {
 		if(_currentPageId != null && _unpinLast) {
 			Minibase.BufferManager.unpinPage(_currentPageId, false);
 		}
