@@ -16,7 +16,6 @@ import global.Minibase;
 import global.PageId;
 import global.RID;
 
-
 public class HeapFile implements GlobalConst
 {
 	private String _name;
@@ -112,7 +111,7 @@ public class HeapFile implements GlobalConst
 	//Must be in O(log N)
 	public RID insertRecord(byte[] record) throws SpaceNotAvailableException {
 		if(record.length > MAX_TUPSIZE) {
-			throw new SpaceNotAvailableException(null, "SpaceNotAvailableException");
+			throw new SpaceNotAvailableException("SpaceNotAvailableException");
 		}
 		
 		PageId pageId = new PageId();
@@ -230,7 +229,7 @@ public class HeapFile implements GlobalConst
 		HFPage dataPage = new HFPage();
 		Minibase.BufferManager.pinPage(pageId, dataPage, PIN_DISKIO);
 		if(dataPage.getSlotLength(rid.slotno) != newRecord.getLength()) {
-			throw new InvalidUpdateException(null, "InvalidUpdateException");
+			throw new InvalidUpdateException();
 		}
 		rid.pageno.pid = -1;
 		dataPage.updateRecord(rid, newRecord);
